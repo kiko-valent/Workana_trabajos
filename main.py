@@ -128,6 +128,7 @@ def run_monitor():
 
     if not new_projects:
         print("\n  Sin proyectos nuevos que notificar hoy.")
+        send_message("No hay trabajos nuevos hoy.")
         print("=" * 55)
         return
 
