@@ -97,7 +97,12 @@ def poll_telegram() -> None:
                 params["offset"] = offset
 
             resp = requests.get(f"{TELEGRAM_API}/getUpdates", params=params, timeout=40)
-            updates = resp.json().get("result", [])
+            data = resp.json()
+            if not data.get("ok"):
+                print(f"[bot] Error de API Telegram: {data.get('description')} (código {data.get('error_code')})", flush=True)
+                time.sleep(10)
+                continue
+            updates = data.get("result", [])
 
             for update in updates:
                 offset = update["update_id"] + 1
