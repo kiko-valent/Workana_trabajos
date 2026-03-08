@@ -9,7 +9,7 @@ Ajustar RUN_HOUR_UTC según tu zona horaria:
   España verano   (CEST = UTC+2): RUN_HOUR_UTC = 8   → 10:00h local
 
 Comando Telegram:
-  Escribe ./trabajos en el chat para lanzar la búsqueda manualmente.
+  Escribe /trabajos en el chat para lanzar la búsqueda manualmente.
 """
 
 import os
@@ -88,7 +88,7 @@ def poll_telegram() -> None:
         return
 
     offset = None
-    print("[bot] Escuchando comandos de Telegram (./trabajos)...", flush=True)
+    print("[bot] Escuchando comandos de Telegram (/trabajos)...", flush=True)
 
     while True:
         try:
@@ -102,8 +102,8 @@ def poll_telegram() -> None:
             for update in updates:
                 offset = update["update_id"] + 1
                 text = update.get("message", {}).get("text", "") or ""
-                if "./trabajos" in text.lower():
-                    print("[bot] Comando ./trabajos recibido.", flush=True)
+                if "/trabajos" in text.lower():
+                    print("[bot] Comando /trabajos recibido.", flush=True)
                     _send("🔍 Buscando trabajos en Workana...")
                     if _run_lock.acquire(blocking=False):
                         try:
