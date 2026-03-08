@@ -2,9 +2,9 @@
 Tool: scrape_workana.py
 Responsabilidad: Hacer scraping de Workana via Firecrawl y parsear los proyectos.
 
-Estrategia (1 crédito por ejecución diaria):
+Estrategia (1 crédito por llamada):
   - Una sola llamada a Firecrawl para https://www.workana.com/jobs?language=es
-  - El filtrado por keywords se hace localmente en Python (sin coste adicional)
+  - El filtrado se hace localmente en Python (sin coste adicional)
 
 Estructura del markdown de Workana (ejemplo real):
   ## [Título del Proyecto](https://www.workana.com/job/slug?ref=projects_1)
@@ -34,11 +34,12 @@ def scrape_workana(language: str = "es") -> list[dict]:
 
     Returns:
         Lista de project dicts con keys:
-          title       (str)
-          description (str)
-          proposals   (int, -1 si no disponible)
-          budget      (str, vacío si no disponible)
-          url         (str, URL limpia sin ?ref=)
+          title            (str)
+          description      (str)
+          proposals        (int, -1 si no disponible)
+          budget           (str, vacío si no disponible)
+          url              (str, URL limpia sin ?ref=)
+          hours_published  (int, horas desde publicación; -1 si no disponible)
 
     Raises:
         EnvironmentError: FIRECRAWL_API_KEY no configurada.
@@ -119,6 +120,7 @@ def _parse_markdown(markdown: str) -> list[dict]:
         context = markdown[start:end]
 
         proposals = _extract_bids(context)
+        hours_published = _extract_hours_published(context)
         description = _extract_description(context)
         budget = _extract_budget(context)
         skills = _extract_skills(context)
@@ -129,10 +131,47 @@ def _parse_markdown(markdown: str) -> list[dict]:
             "proposals": proposals,
             "budget": budget,
             "url": url,
-            "skills": skills,  # lista de skills para keyword matching
+            "skills": skills,
+            "hours_published": hours_published,
         })
 
     return projects
+
+
+def _extract_hours_published(context: str) -> int:
+    """
+    Extrae la antigüedad del proyecto desde la línea Published.
+    Convierte todo a horas enteras.
+
+    Formatos reconocidos (del markdown de Workana via Firecrawl):
+      "Published: 11 hours agoBids: 4"
+      "Published: 1 hour agoBids: 0"
+      "Published: 2 days agoBids: 1"
+      "Published: 45 minutes agoBids: 7"
+
+    Returns:
+        Horas desde la publicación (int >= 1).
+        -1 si no se puede determinar.
+    """
+    m = re.search(
+        r"Published:\s*(\d+)\s*(minute|hour|day)s?\s*ago",
+        context,
+        re.IGNORECASE,
+    )
+    if not m:
+        return -1
+
+    value = int(m.group(1))
+    unit = m.group(2).lower()
+
+    if unit == "minute":
+        return 1  # menos de 1 hora → siempre pasa el filtro de 24h
+    if unit == "hour":
+        return value
+    if unit == "day":
+        return value * 24
+
+    return -1
 
 
 def _extract_bids(context: str) -> int:

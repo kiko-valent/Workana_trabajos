@@ -1,15 +1,11 @@
 """
-scheduler.py — Scheduler para ejecución diaria en Docker / EasyPanel.
+scheduler.py — Bot de Telegram para el Monitor de Proyectos Workana.
 
-Mantiene el contenedor vivo y ejecuta main.py una vez al día a la hora
-configurada en UTC. Sin dependencias externas.
-
-Ajustar RUN_HOUR_UTC según tu zona horaria:
-  España invierno (CET  = UTC+1): RUN_HOUR_UTC = 9   → 10:00h local
-  España verano   (CEST = UTC+2): RUN_HOUR_UTC = 8   → 10:00h local
+Mantiene el contenedor vivo escuchando el comando /trabajos.
+Sin ejecución diaria automática: la búsqueda solo se lanza manualmente.
 
 Comando Telegram:
-  Escribe /trabajos en el chat para lanzar la búsqueda manualmente.
+  Escribe /trabajos en el chat para lanzar la búsqueda.
 """
 
 import os
@@ -17,23 +13,18 @@ import sys
 import time
 import threading
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Configuración scheduler ────────────────────────────────────────────────────
-RUN_HOUR_UTC = 9    # 9 UTC = 10:00h España hora invierno
-RUN_MINUTE_UTC = 0
-# ──────────────────────────────────────────────────────────────────────────────
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-# Lock para evitar ejecuciones simultáneas (scheduler + comando manual)
+# Lock para evitar ejecuciones simultáneas si el usuario spamea /trabajos
 _run_lock = threading.Lock()
 
 
@@ -51,37 +42,18 @@ def _send(text: str) -> None:
         pass
 
 
-def seconds_until_next_run() -> float:
-    now = datetime.utcnow()
-    target = now.replace(hour=RUN_HOUR_UTC, minute=RUN_MINUTE_UTC, second=0, microsecond=0)
-    if target <= now:
-        target += timedelta(days=1)
-    return (target - now).total_seconds()
-
-
 def _run_main() -> None:
     """Ejecuta main.py como subproceso (aislado para evitar conflictos de estado)."""
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    print(f"[scheduler] {ts} — Ejecutando main.py...", flush=True)
+    print(f"[bot] {ts} — Ejecutando main.py...", flush=True)
     result = subprocess.run([sys.executable, "main.py"])
-    print(f"[scheduler] Completado con código de salida: {result.returncode}", flush=True)
-
-
-def run_monitor() -> None:
-    """Lanza _run_main() con lock para evitar ejecuciones paralelas."""
-    if _run_lock.acquire(blocking=False):
-        try:
-            _run_main()
-        finally:
-            _run_lock.release()
-    else:
-        print("[scheduler] Ya hay una ejecución en curso, saltando.", flush=True)
+    print(f"[bot] Completado con código de salida: {result.returncode}", flush=True)
 
 
 def poll_telegram() -> None:
     """
     Escucha mensajes de Telegram con long polling.
-    Cuando detecta './trabajos', lanza la búsqueda manualmente.
+    Cuando detecta /trabajos, lanza la búsqueda.
     """
     if not TELEGRAM_TOKEN:
         print("[bot] TELEGRAM_BOT_TOKEN no configurado, polling desactivado.", flush=True)
@@ -124,19 +96,7 @@ def poll_telegram() -> None:
 
 
 # ── Arranque ───────────────────────────────────────────────────────────────────
-print("[scheduler] Monitor de Proyectos Workana iniciado.", flush=True)
-print(f"[scheduler] Ejecución programada: {RUN_HOUR_UTC:02d}:{RUN_MINUTE_UTC:02d} UTC diariamente.", flush=True)
+print("[bot] Monitor de Proyectos Workana iniciado.", flush=True)
+print("[bot] Modo: solo comando /trabajos (sin cron diario).", flush=True)
 
-bot_thread = threading.Thread(target=poll_telegram, daemon=True, name="telegram-poll")
-bot_thread.start()
-
-while True:
-    secs = seconds_until_next_run()
-    next_dt = datetime.utcnow() + timedelta(seconds=secs)
-    print(
-        f"[scheduler] Próxima ejecución: {next_dt.strftime('%Y-%m-%d %H:%M UTC')} "
-        f"(en {secs / 3600:.1f}h)",
-        flush=True,
-    )
-    time.sleep(secs)
-    run_monitor()
+poll_telegram()

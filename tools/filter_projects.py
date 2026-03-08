@@ -1,10 +1,6 @@
 """
 Tool: filter_projects.py
-Responsabilidad: Filtrar proyectos por número de propuestas y deduplicar
-contra el historial de proyectos ya notificados (seen_projects.json).
-
-seen_projects.json formato interno:
-  {"https://www.workana.com/job/abc": "2026-03-07T10:00:00", ...}
+Responsabilidad: Filtrar proyectos por tiempo de publicación y número de propuestas.
 """
 
 import json
@@ -96,49 +92,67 @@ def filter_by_keywords(projects: list[dict], keywords: list[str]) -> list[dict]:
     return matched
 
 
+def filter_by_time(projects: list[dict], max_hours: int = 24) -> list[dict]:
+    """
+    Mantiene solo los proyectos publicados dentro de las últimas max_hours horas.
+
+    Proyectos con hours_published == -1 (dato no disponible) se incluyen
+    para no descartar proyectos válidos por falta de dato.
+
+    Args:
+        projects:  Lista de project dicts (con clave 'hours_published')
+        max_hours: Ventana de tiempo en horas (por defecto 24)
+
+    Returns:
+        Lista filtrada.
+    """
+    result = []
+    skipped = 0
+
+    for project in projects:
+        age = project.get("hours_published", -1)
+        if age == -1 or age <= max_hours:
+            result.append(project)
+        else:
+            skipped += 1
+
+    print(
+        f"  [tiempo] {len(result)} pasan (últimas {max_hours}h) | "
+        f"{skipped} descartados por antigüedad"
+    )
+    return result
+
+
 def filter_projects(
     projects: list[dict],
-    seen_urls: set[str],
     max_proposals: int,
 ) -> list[dict]:
     """
-    Aplica dos filtros sobre la lista de proyectos:
-      1. Descarta proyectos con proposals > max_proposals
-         (proposals == -1 pasa: no se pudo extraer el dato)
-      2. Descarta URLs ya presentes en seen_urls
+    Filtra proyectos por número máximo de propuestas.
 
     Args:
         projects:      Lista de project dicts de scrape_workana
-        seen_urls:     Set de URLs ya notificadas
-        max_proposals: Máximo aceptable de propuestas
+        max_proposals: Máximo aceptable de propuestas (ej. 4)
 
     Returns:
-        Lista filtrada de proyectos nuevos.
+        Lista filtrada.
     """
     result = []
-    stats = {"proposals_rejected": 0, "already_seen": 0, "passed": 0}
+    rejected = 0
 
     for project in projects:
-        url = project["url"]
         proposals = project["proposals"]
 
-        # Filtro 1: propuestas
+        # proposals == -1 significa dato no disponible: pasar el filtro
         if proposals != -1 and proposals > max_proposals:
-            stats["proposals_rejected"] += 1
+            rejected += 1
             continue
 
-        # Filtro 2: ya notificado
-        if url in seen_urls:
-            stats["already_seen"] += 1
-            continue
-
-        stats["passed"] += 1
         result.append(project)
 
     print(
-        f"  [filtro] {stats['passed']} pasan | "
-        f"{stats['proposals_rejected']} descartados por propuestas | "
-        f"{stats['already_seen']} ya vistos"
+        f"  [propuestas] {len(result)} pasan | "
+        f"{rejected} descartados (>{max_proposals} propuestas)"
     )
     return result
 
