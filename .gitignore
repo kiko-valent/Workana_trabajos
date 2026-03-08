@@ -1,0 +1,14 @@
+# Credenciales y secretos — NUNCA subir
+.env
+
+# Entorno virtual Python
+.venv/
+
+# Archivos temporales y estado local
+.tmp/
+seen_projects.json
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*.pyo
