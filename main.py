@@ -72,7 +72,7 @@ def load_config() -> dict:
     return config
 
 
-def main():
+def run_monitor():
     print("=" * 55)
     print("  Monitor de Proyectos Workana")
     print(f"  {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
@@ -158,4 +158,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_monitor()
