@@ -31,6 +31,9 @@ from tools.send_telegram import format_projects_message, send_message
 MAX_PROPOSALS = 4
 MAX_HOURS = 24
 WORKANA_LANGUAGE = "es"
+WORKANA_QUERY = "automatizacion"
+WORKANA_AGREEMENT = "fixed"
+WORKANA_PUBLICATION = "1d"
 
 
 def run_monitor():
@@ -42,7 +45,12 @@ def run_monitor():
     # ── [1/3] Scraping (1 crédito Firecrawl) ─────────────────────────────────
     print(f"\n[1/3] Scrapeando Workana (1 llamada Firecrawl)...")
     try:
-        raw_projects = scrape_workana(WORKANA_LANGUAGE)
+        raw_projects = scrape_workana(
+            language=WORKANA_LANGUAGE,
+            query=WORKANA_QUERY,
+            agreement=WORKANA_AGREEMENT,
+            publication=WORKANA_PUBLICATION,
+        )
     except Exception as e:
         print(f"\n[ERROR] Fallo en el scraping: {e}")
         sys.exit(1)

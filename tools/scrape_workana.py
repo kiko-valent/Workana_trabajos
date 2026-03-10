@@ -3,7 +3,7 @@ Tool: scrape_workana.py
 Responsabilidad: Hacer scraping de Workana via Firecrawl y parsear los proyectos.
 
 Estrategia (1 crédito por llamada):
-  - Una sola llamada a Firecrawl para https://www.workana.com/jobs?language=es
+  - Una sola llamada a Firecrawl para https://www.workana.com/jobs?agreement=fixed&language=es&publication=1d&query=automatizacion
   - El filtrado se hace localmente en Python (sin coste adicional)
 
 Estructura del markdown de Workana (ejemplo real):
@@ -24,13 +24,21 @@ FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 FIRECRAWL_URL = "https://api.firecrawl.dev/v1/scrape"
 
 
-def scrape_workana(language: str = "es") -> list[dict]:
+def scrape_workana(
+    language: str = "es",
+    query: str = "automatizacion",
+    agreement: str = "fixed",
+    publication: str = "1d",
+) -> list[dict]:
     """
-    Scrapeea la página principal de proyectos de Workana (1 crédito Firecrawl).
+    Scrapeea la página de proyectos de Workana con filtros (1 crédito Firecrawl).
     Devuelve todos los proyectos visibles sin filtrar.
 
     Args:
-        language: Código de idioma para la URL de Workana (por defecto "es")
+        language:    Código de idioma (por defecto "es")
+        query:       Término de búsqueda (por defecto "automatizacion")
+        agreement:   Tipo de contrato: "fixed" o "hourly" (por defecto "fixed")
+        publication: Antigüedad: "1d" = últimas 24h (por defecto "1d")
 
     Returns:
         Lista de project dicts con keys:
@@ -48,7 +56,13 @@ def scrape_workana(language: str = "es") -> list[dict]:
     if not FIRECRAWL_API_KEY:
         raise EnvironmentError("FIRECRAWL_API_KEY no está configurada en .env")
 
-    url = f"https://www.workana.com/jobs?language={language}"
+    url = (
+        f"https://www.workana.com/jobs"
+        f"?agreement={agreement}"
+        f"&language={language}"
+        f"&publication={publication}"
+        f"&query={query}"
+    )
     print(f"  [firecrawl] Scrapeando: {url}")
 
     resp = requests.post(
