@@ -1,11 +1,12 @@
 """
 scheduler.py — Bot de Telegram para el Monitor de Proyectos Workana.
 
-Mantiene el contenedor vivo escuchando el comando /trabajos.
+Mantiene el contenedor vivo escuchando comandos de Telegram.
 Sin ejecución diaria automática: la búsqueda solo se lanza manualmente.
 
-Comando Telegram:
-  Escribe /trabajos en el chat para lanzar la búsqueda.
+Comandos Telegram:
+  /trabajos  — Lanza la búsqueda de proyectos en Workana.
+  /respuesta — Genera una propuesta profesional para un proyecto (usa Claude API).
 """
 
 import os
@@ -20,12 +21,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from tools.generate_proposal_response import generate_proposal
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 # Lock para evitar ejecuciones simultáneas si el usuario spamea /trabajos
 _run_lock = threading.Lock()
+
+# Estado de conversación para el flujo /respuesta
+# {chat_id: {"step": "waiting_title" | "waiting_description", "title": str}}
+_respuesta_state: dict = {}
 
 
 def _send(text: str) -> None:
@@ -78,8 +85,32 @@ def poll_telegram() -> None:
 
             for update in updates:
                 offset = update["update_id"] + 1
-                text = update.get("message", {}).get("text", "") or ""
-                if "/trabajos" in text.lower():
+                msg = update.get("message", {})
+                text = msg.get("text", "") or ""
+                chat_id = str(msg.get("chat", {}).get("id", ""))
+
+                if "/respuesta" in text.lower():
+                    print("[bot] Comando /respuesta recibido.", flush=True)
+                    _respuesta_state[chat_id] = {"step": "waiting_title"}
+                    _send("¿Cuál es el título del proyecto?")
+
+                elif chat_id in _respuesta_state:
+                    state = _respuesta_state[chat_id]
+                    if state["step"] == "waiting_title":
+                        _respuesta_state[chat_id] = {"step": "waiting_description", "title": text}
+                        _send("Ahora pega la descripción del proyecto:")
+                    elif state["step"] == "waiting_description":
+                        title = state["title"]
+                        _send("⏳ Generando propuesta...")
+                        del _respuesta_state[chat_id]
+                        try:
+                            proposal = generate_proposal(title, text)
+                            _send(proposal)
+                        except Exception as e:
+                            print(f"[bot] Error generando propuesta: {e}", flush=True)
+                            _send("❌ Error al generar la propuesta. Comprueba que ANTHROPIC_API_KEY está configurada.")
+
+                elif "/trabajos" in text.lower():
                     print("[bot] Comando /trabajos recibido.", flush=True)
                     _send("🔍 Buscando trabajos en Workana...")
                     if _run_lock.acquire(blocking=False):
@@ -97,6 +128,6 @@ def poll_telegram() -> None:
 
 # ── Arranque ───────────────────────────────────────────────────────────────────
 print("[bot] Monitor de Proyectos Workana iniciado.", flush=True)
-print("[bot] Modo: solo comando /trabajos (sin cron diario).", flush=True)
+print("[bot] Comandos disponibles: /trabajos, /respuesta", flush=True)
 
 poll_telegram()
